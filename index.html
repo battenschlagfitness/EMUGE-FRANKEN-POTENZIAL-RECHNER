@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>EMUGE Potenzial-Kalkulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * { -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .large-number { font-size: clamp(48px, 12vw, 80px); font-weight: 900; line-height: 1; }
+        .touch-target { min-height: 48px; }
+        input, select { font-size: 16px; }
+        select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23fff' d='M6 9L1 4h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px; }
+    </style>
+</head>
+<body class="bg-slate-900">
+    <div id="app"></div>
+
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const App = () => {
+            const [customers, setCustomers] = useState([]);
+            const [customerName, setCustomerName] = useState('');
+            const [editingId, setEditingId] = useState(null);
+            const [formData, setFormData] = useState({
+                industry: 'Maschinenbau',
+                machines: '15',
+                material: 'Stahl',
+                shifts: '1'
+            });
+
+            const data = {
+                industries: {
+                    'Maschinenbau': { factor: 1, quote: 0.25 },
+                    'Lohnfertigung': { factor: 1.1, quote: 0.6 },
+                    'Aerospace': { factor: 1.3, quote: 0.5 },
+                    'Werkzeug-/Formenbau': { factor: 1.05, quote: 0.4 }
+                },
+                materials: { 'Aluminium': 0.65, 'Stahl': 1, 'Edelstahl': 1.15, 'Titan': 1.5 },
+                shifts: { '1': 1, '2': 1.7, '3': 2.4 },
+                baseValue: 5000
+            };
+
+            useEffect(() => {
+                const saved = localStorage.getItem('emugeCustomers');
+                if (saved) try { setCustomers(JSON.parse(saved)); } catch (e) {}
+            }, []);
+
+            useEffect(() => {
+                localStorage.setItem('emugeCustomers', JSON.stringify(customers));
+            }, [customers]);
+
+            const calculate = () => {
+                const machines = parseFloat(formData.machines);
+                if (!machines || machines === 0) return null;
+
+                const potential = Math.round(
+                    machines * data.baseValue * 
+                    data.shifts[formData.shifts] * 
+                    data.materials[formData.material] * 
+                    data.industries[formData.industry].factor / 100
+                ) * 100;
+
+                let klasse, farbe;
+                if (potential >= 150000) { klasse = 'A'; farbe = 'from-emerald-500 to-emerald-600'; }
+                else if (potential >= 75000) { klasse = 'B'; farbe = 'from-blue-500 to-blue-600'; }
+                else if (potential >= 25000) { klasse = 'C'; farbe = 'from-yellow-500 to-yellow-600'; }
+                else if (potential >= 5000) { klasse = 'D'; farbe = 'from-orange-500 to-orange-600'; }
+                else { klasse = 'E'; farbe = 'from-gray-500 to-gray-600'; }
+
+                return { potential, klasse, farbe };
+            };
+
+            const handleSave = () => {
+                if (!customerName.trim()) {
+                    alert('Kundennamen eingeben!');
+                    return;
+                }
+                const calc = calculate();
+                if (!calc) {
+                    alert('Maschinen eingeben!');
+                    return;
+                }
+
+                const customer = {
+                    id: editingId || Date.now().toString(),
+                    name: customerName,
+                    ...formData,
+                    ...calc,
+                    savedAt: new Date().toLocaleString('de-DE')
+                };
+
+                if (editingId) {
+                    setCustomers(customers.map(c => c.id === editingId ? customer : c));
+                } else {
+                    setCustomers([...customers, customer]);
+                }
+
+                setCustomerName('');
+                setFormData({ industry: 'Maschinenbau', machines: '15', material: 'Stahl', shifts: '1' });
+                setEditingId(null);
+            };
+
+            const handleEdit = (c) => {
+                setCustomerName(c.name);
+                setFormData({ industry: c.industry, machines: c.machines, material: c.material, shifts: c.shifts });
+                setEditingId(c.id);
+                window.scrollTo(0, 0);
+            };
+
+            const handleDelete = (id) => {
+                if (confirm('Wirklich löschen?')) {
+                    setCustomers(customers.filter(c => c.id !== id));
+                }
+            };
+
+            const calc = calculate();
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 pb-20">
+                    {/* HEADER */}
+                    <div className="bg-gradient-to-r from-orange-600 to-orange-700 text-white p-4 sticky top-0 z-50 shadow-lg">
+                        <div className="flex items-center gap-3 max-w-2xl mx-auto">
+                            <span className="text-3xl">🔧</span>
+                            <div>
+                                <h1 className="text-xl font-bold">Potenzial-Kalkulator</h1>
+                                <p className="text-xs text-orange-100">EMUGE FRANKEN</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="max-w-2xl mx-auto p-4 space-y-4">
+                        
+                        {/* INPUT SECTION */}
+                        <div className="bg-slate-800 rounded-xl p-4 space-y-3 border border-slate-700">
+                            <select
+                                value={formData.industry}
+                                onChange={(e) => setFormData({...formData, industry: e.target.value})}
+                                className="w-full bg-slate-700 text-white border border-slate-600 rounded-lg px-4 py-3 touch-target focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            >
+                                <option value="Maschinenbau">🏭 Maschinenbau</option>
+                                <option value="Lohnfertigung">🏭 Lohnfertigung</option>
+                                <option value="Aerospace">🏭 Aerospace</option>
+                                <option value="Werkzeug-/Formenbau">🏭 Werkzeug-/Formenbau</option>
+                            </select>
+
+                            <input
+                                type="number"
+                                placeholder="⚙️ Maschinen"
+                                value={formData.machines}
+                                onChange={(e) => setFormData({...formData, machines: e.target.value})}
+                                className="w-full bg-slate-700 text-white border border-slate-600 rounded-lg px-4 py-3 touch-target focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            />
+
+                            <select
+                                value={formData.material}
+                                onChange={(e) => setFormData({...formData, material: e.target.value})}
+                                className="w-full bg-slate-700 text-white border border-slate-600 rounded-lg px-4 py-3 touch-target focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            >
+                                <option value="Aluminium">🔩 Aluminium</option>
+                                <option value="Stahl">🔩 Stahl</option>
+                                <option value="Edelstahl">🔩 Edelstahl</option>
+                                <option value="Titan">🔩 Titan</option>
+                            </select>
+
+                            <select
+                                value={formData.shifts}
+                                onChange={(e) => setFormData({...formData, shifts: e.target.value})}
+                                className="w-full bg-slate-700 text-white border border-slate-600 rounded-lg px-4 py-3 touch-target focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            >
+                                <option value="1">⏰ 1 Schicht (1.0×)</option>
+                                <option value="2">⏰ 2 Schichten (1.7×)</option>
+                                <option value="3">⏰ 3 Schichten (2.4×)</option>
+                            </select>
+                        </div>
+
+                        {/* RESULT */}
+                        {calc && (
+                            <div className={`bg-gradient-to-br ${calc.farbe} rounded-2xl p-6 text-white text-center shadow-lg`}>
+                                <p className="text-sm opacity-80 mb-2">Jahrespotenzial</p>
+                                <p className="large-number">€ {(calc.potential / 1000).toFixed(0)}k</p>
+                                <p className="text-2xl font-bold mt-4">Klasse {calc.klasse}</p>
+                                <p className="text-sm opacity-90 mt-1">{calc.potential.toLocaleString('de-DE')} €</p>
+                            </div>
+                        )}
+
+                        {/* SAVE SECTION */}
+                        <div className="bg-slate-800 rounded-xl p-4 space-y-3 border border-slate-700">
+                            <input
+                                type="text"
+                                placeholder="👤 Kundenname"
+                                value={customerName}
+                                onChange={(e) => setCustomerName(e.target.value)}
+                                onKeyPress={(e) => e.key === 'Enter' && handleSave()}
+                                className="w-full bg-slate-700 text-white border border-slate-600 rounded-lg px-4 py-3 touch-target focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                autoFocus={editingId !== null}
+                            />
+                            <button
+                                onClick={handleSave}
+                                className="w-full bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white font-bold py-3 rounded-lg transition touch-target shadow-lg"
+                            >
+                                💾 {editingId ? 'Aktualisieren' : 'Speichern & Kunde'}
+                            </button>
+                            {editingId && (
+                                <button
+                                    onClick={() => {
+                                        setCustomerName('');
+                                        setFormData({ industry: 'Maschinenbau', machines: '15', material: 'Stahl', shifts: '1' });
+                                        setEditingId(null);
+                                    }}
+                                    className="w-full bg-slate-600 hover:bg-slate-500 text-white font-bold py-3 rounded-lg transition touch-target"
+                                >
+                                    ❌ Abbruch
+                                </button>
+                            )}
+                        </div>
+
+                        {/* CUSTOMERS LIST */}
+                        {customers.length > 0 && (
+                            <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                                <h2 className="text-white font-bold mb-3">📋 Kunden ({customers.length})</h2>
+                                <div className="space-y-2">
+                                    {customers.map(c => (
+                                        <div
+                                            key={c.id}
+                                            onClick={() => handleEdit(c)}
+                                            className={`bg-gradient-to-r ${c.farbe} rounded-lg p-3 text-white cursor-pointer hover:shadow-lg transition transform hover:-translate-y-1`}
+                                        >
+                                            <div className="flex justify-between items-start">
+                                                <div className="flex-1">
+                                                    <h3 className="font-bold text-sm">{c.name}</h3>
+                                                    <p className="text-xs opacity-75">{c.industry}</p>
+                                                </div>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDelete(c.id);
+                                                    }}
+                                                    className="bg-red-600 hover:bg-red-700 p-2 rounded ml-2 transition"
+                                                >
+                                                    🗑️
+                                                </button>
+                                            </div>
+                                            <div className="mt-2 flex justify-between text-sm">
+                                                <span>€ {c.potential.toLocaleString('de-DE')}</span>
+                                                <span className="font-bold">Klasse {c.klasse}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<App />, document.getElementById('app'));
+    </script>
+</body>
+</html>
